@@ -1,7 +1,7 @@
 ---
 title: "Assignment1_Stat40830 Git Upload"
 author: "Neal Tuffy"
-subtitle: "Student Number 02454220"
+subtitle: "Student Number (02454220)"
 date: "18 June 2025"
 format:
   beamer:
