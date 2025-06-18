@@ -1,8 +1,8 @@
 ---
-title: "Assignment1_Stat40830"
+title: "Assignment1_Stat40830 Git Upload"
 author: "Neal Tuffy"
 subtitle: "Student Number 02454220"
-date: "11 June 2025"
+date: "18 June 2025"
 format:
   beamer:
     template: header_beamer.tex
