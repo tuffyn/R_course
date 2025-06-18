@@ -1,0 +1,303 @@
+---
+title: "Assignment1_Stat40830"
+author: "Neal Tuffy"
+subtitle: "Student Number 02454220"
+date: "11 June 2025"
+format:
+  beamer:
+    template: header_beamer.tex
+    toc: false
+fontsize: 9pt
+execute: 
+  eval: true
+  echo: true
+  message: false
+  warning: false
+  size: 15
+---
+
+## Assignment Overview
+
+Choose at least 3 countries from Economic, Social, Environmental, Health, Education, Development and Energy Database. I chose 3 small countries with very different development indexes, *Eswatini*, *Luxembourg* and *Mongolia*.
+
+-   Estawini has a population of 1.2Million and is an undeveloped country in southern Africa. It ranks low on Human development category, in position 143 out of 193 countries.
+-   Luxembourg is a very high GDP developed country with a population of 0.66Million. It is consistently ranked in the top 10 of Human development.
+-   Mongolia has a population of 2.1 Million but is very sparsely populated with large area.It ranks mid table 103, on Human development category.
+
+```{r}
+#| echo: false
+#| message: false
+#| include: false
+
+library(dplyr)
+library(magrittr)
+library(plotly)
+library(ggplot2)
+require(viridis)
+library(scales)
+library(tidyr)
+require(ggplot2)
+library(data.table)
+library(knitr)
+```
+
+## Reading in the Data
+
+Read in the data for countries **Eswatini, Luxembourg and Mongolia** using data.table, and merge using rbind:
+
+```{r}
+#| label: data read & merge
+# Read in the data set as a data.table
+dt_swz <- data.table::fread("indicators_swz.csv")
+dt_lux <- data.table::fread("indicators_lux.csv")
+dt_mng <- data.table::fread("indicators_mng.csv")
+# Remove the first row as it is a header
+dt_swz <- dt_swz[-1, ]
+dt_lux <- dt_lux[-1, ]
+dt_mng <- dt_mng[-1, ]
+
+# Merge the 3 tables using rbind
+dt <- rbind(dt_swz, dt_lux, dt_mng)
+
+#Check for any na
+na_counts <- dt[, lapply(.SD, function(x) sum(is.na(x)))]
+print(na_counts)
+
+```
+
+## Apply Correct Class to Variables
+
+Ensure `Country Name`,`Country ISO3`,`Indicator Name`,`Indicator Code` categorical variables are all converted into factors for data analysis. Also, force the numeric columns Value and Year to be numerical type.
+
+```{r}
+#| label: data class convert
+# Convert the categorical variables to factors
+dt[, `Country Name` := as.factor(`Country Name`)]
+dt[, `Country ISO3` := as.factor(`Country ISO3`)]
+dt[, `Indicator Name` := as.factor(`Indicator Name`)]
+dt[, `Indicator Code` := as.factor(`Indicator Code`)]
+
+# Convert Year and Value to numerical columns
+dt[, Value := as.numeric(Value)]
+dt[, Year := as.numeric(Year)]
+```
+
+## EDA: Data by Year for each Country
+
+First understand the number of data points available for each country and also how the data is distributed over time.
+
+```{r, results='asis'}
+#| label: EDA Year code
+#| echo: true
+
+# Add a density column 
+dt[, PlotType := "Density"]
+
+# Count the number of data points by year of the data.table
+year_counts <- dt[, .N, by = .(Year, `Country Name`)]
+
+# Create a new column Absolute count
+year_counts[, PlotType := "Absolute Count"]
+
+# Combine both datasets
+combined_dt <- rbind(dt, year_counts, fill = TRUE)
+
+
+```
+
+## EDA: Data by Year for each Country
+
+```{r}
+#| label: EDA year Plot
+#| echo: false
+
+
+# Create side by side plots
+ggplot(combined_dt, aes(x = Year, color = `Country Name`, fill = `Country Name`)) +
+  geom_density(data = combined_dt[PlotType == "Density"], alpha = 0.3) +
+  geom_bar(data = combined_dt[PlotType == "Absolute Count"], aes(y = N), 
+           stat = "identity", position = "dodge", alpha = 0.3) +  # Absolute count plot
+  facet_wrap(~ PlotType, scales = "free_y") +  # Different Yaxis for each plot
+  labs(title = "Data vs Year: Absolute Count & Density",
+       x = "Year", y = "Absolute Count & Density") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 15),  # set legend text 
+        plot.title = element_text(size = 19),     # set title font size
+        axis.title.x = element_text(size = 17),    # set Xaxis title size
+        axis.title.y = element_text(size = 17),    # set Yaxis title size
+        axis.text = element_text(size = 17),       # set axis text size
+        strip.text = element_text(size = 18))
+
+
+```
+
+-   We observe similar number of data points for Luxembourg and Eswatini.
+-   Mongolia had less data initially but now has similar data available.
+
+## Numerical Summary of the Data
+
+Summarise the data.table variables:
+
+```{r, results='asis'}
+#| label: data summary
+cat("\\tiny")
+# Summarise all columns 
+summary(dt)
+```
+
+## Numerical Summary of the Data
+
+The dataset covers a wide range of years, from 1960 to 2024, with a median year of 2004, capturing historical trends in various indicators.
+
+Observations by Country:
+
+-   Eswatini has 72,457 observations, Luxembourg has 66,526 and Mongolia 79,452.
+
+Most frequent indicators:
+
+-   Net Migration: 585 entries - Adolescent Fertility Rate: 576 entries - Life Expectancy (Female): 576 entries - Life Expectancy (Male): 576 entries - Precipitation (mm/year): 549 entries - Under-5 Mortality Rate: 522 entries
+
+## GDP By Country
+
+Tabulate the mean GDP and LIfe Expectancy for each of teh 3 countries over time. THen use data.table to plot GDP vs Life Expectancy to check for linear correlation for each country.
+
+```{r, results='asis'}
+#| label: GDP Life Exp by country
+
+cat("\\tiny")
+
+# Print summary statistics table
+summary_dt <- dt[, .(Mean_GDP = mean(Value[`Indicator Name` == "GDP (constant 2015 US$)"], na.rm = TRUE),
+                     Mean_LifeExp_F = mean(Value[`Indicator Name` == "Life expectancy at birth, female (years)"], 
+                                           na.rm = TRUE),
+                     Mean_LifeExp_M = mean(Value[`Indicator Name` == "Life expectancy at birth, male (years)"], 
+                                           na.rm = TRUE)),
+                 keyby = `Country Name`]
+
+kable(summary_dt, caption = "Summary Statistics by Country")
+```
+
+## Data ANalysis: GDP vs Life Expectancy vs Poverty
+
+**Goal:**
+
+\- Investigate how GDP Poverty and life expectancy are related in each country.
+
+\- Is there a linear relationship between the variables?
+
+## GDP & Life Expectancy Correlation
+
+```{r, results='asis'}
+#| fig-width: 5.5
+#| fig-height: 1.5
+cat("\\tiny")
+# Select GDP & Life Expectancy indicators
+gdp_dt <- dt[`Indicator Name` == "GDP (constant 2015 US$)", .(Year, `Country Name`, GDP = Value)]
+life_exp_dt <- dt[`Indicator Name` == "Life expectancy at birth, female (years)", .(Year, `Country Name`, LifeExp = Value)]
+
+# Merge data efficiently using data.table
+merged_dt <- gdp_dt[life_exp_dt, on = .(Year, `Country Name`)]  
+
+# Create scater plots of Life Expectancy vs GDP
+ggplot(na.omit(merged_dt), aes(x = GDP / 1e9, y = LifeExp)) +
+  geom_point(alpha = 0.6, color = "blue") +  # Scatter plot
+  geom_smooth(method = "lm", formula = y ~ x, color = "red", se = FALSE) +  # Regression line
+  facet_wrap(~ `Country Name`, scales = "free") +  # Separate plots for each country
+  labs(title = "GDP vs Life Expectancy (Female) by Country",
+       x = "GDP (Billions, constant 2015 US$)", y = "Life Expectancy (Years)") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 7),     # Reduce title font size
+        axis.title.x = element_text(size = 5),    # Reduce Xaxis title size
+        axis.title.y = element_text(size = 5),    # Reduce Yaxis title size
+        axis.text = element_text(size = 5),       # Reduce axis text size
+        strip.text = element_text(size = 7))
+```
+
+## Numerical Summary of the Data
+
+```{r, results='asis'}
+#| label: Life Expectancy
+#| fig-width: 5.5
+#| fig-height: 1.5
+cat("\\tiny")
+# Filter dataset for only the Life expectancy indicators
+filtered_dt <- dt[`Indicator Name` %in% c("Life expectancy at birth, female (years)", 
+                                          "Life expectancy at birth, male (years)")]
+
+ggplot(filtered_dt, aes(x = Year, y = Value, color = `Indicator Name`)) +
+  geom_line(size = 1) +
+  facet_wrap(~ `Country Name`) +  # Group by country
+  labs(title = "Life Expectancy at Birth by Gender",
+       x = "Year", y = "Life Expectancy (Years)", color = NULL) +  # Remove legend title
+  theme_minimal() +
+  theme(legend.position = "right",          # move legend to the right
+        legend.text = element_text(size = 5),  # Make legend text smaller
+        legend.key.size = unit(0.4, "cm"),  # Reduce legend key siz
+        plot.title = element_text(size = 7),     # Reduce title font size
+        axis.title.x = element_text(size = 5),    # Reduce Xaxis title size
+        axis.title.y = element_text(size = 5),    # Reduce Yaxis title size
+        axis.text = element_text(size = 4),       # Reduce axis text size
+        strip.text = element_text(size = 6))
+
+```
+
+## GDP By Country
+
+```{r, results='asis'}
+#| label: GDP
+#| fig-width: 4
+#| fig-height: 1.5
+cat("\\tiny")
+# Filter dataset for only GDP (constant 2015 US$)
+filtered_dt <- dt[`Indicator Name` == "GDP (constant 2015 US$)"]
+
+# Create a line plot of GDP over time, grouped by country
+ggplot(filtered_dt, aes(x = Year, y = Value, color = `Country Name`)) +
+  geom_line(size = 1) +
+  labs(title = "GDP Trends (Constant 2015 US$)", 
+       x = "Year", y = "GDP (2015 US$)", color = NULL) +
+  theme_minimal() +
+  theme(legend.position = "right",          # move legend to the right
+        legend.text = element_text(size = 6),  # Make legend text smaller
+        legend.key.size = unit(0.4, "cm"),  # Reduce legend key siz
+        plot.title = element_text(size = 7),     # Reduce title font size
+        axis.title.x = element_text(size = 5),    # Reduce Xaxis title size
+        axis.title.y = element_text(size = 5),    # Reduce Yaxis title size
+        axis.text = element_text(size = 4),      # Reduce axis text size
+        strip.text = element_text(size = 6))
+```
+
+## Poverty Indicator
+
+```{r, results='asis'}
+#| label: Poverty
+#| fig-width: 4
+#| fig-height: 1.5
+cat("\\tiny")
+# Filter dataset for only GDP (constant 2015 US$)
+filtered_dt <- dt[`Indicator Name` == "Poverty headcount ratio at $2.15 a day (2017 PPP) (% of population)"]
+
+# Create a line plot of GDP over time, grouped by country
+ggplot(filtered_dt, aes(x = Year, y = Value, color = `Country Name`)) +
+  geom_line(size = 1) +
+  labs(title = "Poverty headcount ratio at $2.15 a day (2017 PPP) (% of population)", 
+       x = "Year", y = "Povery Headcount (%)", color = NULL) +
+  theme_minimal() +
+  theme(legend.position = "right",          # move legend to the right
+        legend.text = element_text(size = 6),  # Make legend text smaller
+        legend.key.size = unit(0.4, "cm"),  # Reduce legend key siz
+        plot.title = element_text(size = 7),     # Reduce title font size
+        axis.title.x = element_text(size = 5),    # Reduce Xaxis title size
+        axis.title.y = element_text(size = 5),    # Reduce Yaxis title size
+        axis.text = element_text(size = 4),      # Reduce axis text size
+        strip.text = element_text(size = 6))
+```
+
+## Summary of Data
+
+The 5 preceeding slides can be summarised as follows: - Luxembourg shows a linear relationship between GDP and Life expectancy. Both LIfe expectancy and GDP have been monotonically rising over teh past 60+ years.
+
+-   Mongolia's life expectancy has risen faster than Luxembourg's, as the baseline life expectancy was very low pre 1960 for Mongolia. Mongolia's GDP is also not increasing as rapidly as Luxembourg's.
+
+-   Eswatini shows a nonlinear relationship between life expectancy and GDP. Even though GDP has been rising over time, we notice a sharp decline in life expect in the late 1990s/early 2000s. This is due to an AIDS/HIV epidemic that gave rise to high mortality rates in the country. The greater rate of poverty in Eswatini is likely correlated with the lower Life Expectancy.
